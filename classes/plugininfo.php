@@ -36,8 +36,9 @@ class plugininfo extends plugin implements plugin_with_buttons, plugin_with_conf
      * Whether to offer the button in this editor.
      *
      * Only where a block can live and only to people who may write one: an activity's own editors
-     * (a description, a book chapter, a lesson page), or a course's editors on the "add an activity"
-     * form, where the description is written before the activity exists.
+     * (a description, a book chapter, a lesson page), a section's summary on its edit page, or a
+     * course's editors on the "add an activity" form, where the description is written before the
+     * activity exists.
      *
      * Never in an editor rendered over AJAX. The one that matters is the guidance editor itself,
      * inside local_edguidance's modal form: guidance embedded in guidance is never shown, so a button
@@ -57,8 +58,6 @@ class plugininfo extends plugin implements plugin_with_buttons, plugin_with_conf
         array $fpoptions,
         ?editor $editor = null
     ): bool {
-        global $PAGE;
-
         if (defined('AJAX_SCRIPT') && AJAX_SCRIPT) {
             return false;
         }
@@ -71,12 +70,49 @@ class plugininfo extends plugin implements plugin_with_buttons, plugin_with_conf
             return has_capability('local/edguidance:manage', $context);
         }
 
-        if ($context->contextlevel == CONTEXT_COURSE && (int)$context->instanceid !== SITEID) {
-            $url = $PAGE->has_set_url() ? $PAGE->url->get_path(false) : '';
-            return str_ends_with($url, '/course/modedit.php') && has_capability('local/edguidance:manage', $context);
+        if ($context->contextlevel == CONTEXT_COURSE && (int)$context->instanceid !== (int)SITEID) {
+            return (self::on_page('/course/modedit.php') || self::section_being_edited($context))
+                && has_capability('local/edguidance:manage', $context);
         }
 
         return false;
+    }
+
+    /**
+     * Whether this is the page with the given path.
+     *
+     * @param string $path The path from the Moodle root, e.g. /course/modedit.php.
+     * @return bool
+     */
+    protected static function on_page(string $path): bool {
+        global $PAGE;
+
+        return $PAGE->has_set_url() && str_ends_with($PAGE->url->get_path(false), $path);
+    }
+
+    /**
+     * The section whose summary this course context's editor is for, or 0 if it is not one.
+     *
+     * A section summary's editor is in the course context, as the "add an activity" form's is, so
+     * only the page tells them apart. The section id goes to the client and comes back with each
+     * block, so local_edguidance can tell a section's block from a draft.
+     *
+     * @param context $context The editor's context.
+     * @return int
+     */
+    protected static function section_being_edited(context $context): int {
+        global $DB, $PAGE;
+
+        if ($context->contextlevel != CONTEXT_COURSE || !self::on_page('/course/editsection.php')) {
+            return 0;
+        }
+
+        $sectionid = (int)$PAGE->url->param('id');
+        if (!$sectionid || !$DB->record_exists('course_sections', ['id' => $sectionid, 'course' => $context->instanceid])) {
+            return 0;
+        }
+
+        return $sectionid;
     }
 
     /**
@@ -98,7 +134,7 @@ class plugininfo extends plugin implements plugin_with_buttons, plugin_with_conf
     }
 
     /**
-     * The site presets on offer, for the button's menu.
+     * The site presets on offer, for the button's menu, and the section being edited, if any.
      *
      * @param context $context The editor's context.
      * @param array $options The editor options.
@@ -118,6 +154,6 @@ class plugininfo extends plugin implements plugin_with_buttons, plugin_with_conf
             $presets[] = ['slot' => $slot, 'title' => format_string($title, true, ['context' => $context, 'escape' => false])];
         }
 
-        return ['presets' => $presets];
+        return ['presets' => $presets, 'sectionid' => self::section_being_edited($context)];
     }
 }

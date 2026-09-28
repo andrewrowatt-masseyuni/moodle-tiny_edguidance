@@ -64,6 +64,37 @@ final class plugininfo_test extends \advanced_testcase {
     }
 
     /**
+     * On a section's edit page, for that section's summary, and the client is told which section.
+     */
+    public function test_section_summary_editor(): void {
+        global $PAGE;
+
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $other = $this->getDataGenerator()->create_course();
+        $context = \context_course::instance($course->id);
+        $section = get_fast_modinfo($course)->get_section_info(1);
+
+        $this->setUser($this->getDataGenerator()->create_and_enrol($course, 'editingteacher'));
+        $PAGE->set_url(new \moodle_url('/course/editsection.php', ['id' => $section->id]));
+        $this->assertTrue(plugininfo::is_enabled($context, [], []));
+        $this->assertSame(
+            (int)$section->id,
+            plugininfo::get_plugin_configuration_for_context($context, [], [])['sectionid']
+        );
+
+        $this->setUser($this->getDataGenerator()->create_and_enrol($course, 'teacher'));
+        $this->assertFalse(plugininfo::is_enabled($context, [], []));
+
+        // A section id that is not in this course's context is no section at all.
+        $this->setAdminUser();
+        $PAGE = new \moodle_page();
+        $PAGE->set_url(new \moodle_url('/course/editsection.php', ['id' => get_fast_modinfo($other)->get_section_info(1)->id]));
+        $this->assertFalse(plugininfo::is_enabled($context, [], []));
+        $this->assertSame(0, plugininfo::get_plugin_configuration_for_context($context, [], [])['sectionid']);
+    }
+
+    /**
      * Never anywhere else: site settings, the front page, a user's profile.
      */
     public function test_other_contexts(): void {
@@ -73,6 +104,22 @@ final class plugininfo_test extends \advanced_testcase {
         $this->assertFalse(plugininfo::is_enabled(\context_system::instance(), [], []));
         $this->assertFalse(plugininfo::is_enabled(\context_course::instance(SITEID), [], []));
         $this->assertFalse(plugininfo::is_enabled(\context_user::instance(get_admin()->id), [], []));
+    }
+
+    /**
+     * Not for a front page section, though it is edited on the same page as any other.
+     */
+    public function test_front_page_sections(): void {
+        global $CFG, $PAGE;
+
+        require_once($CFG->dirroot . '/course/lib.php');
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        course_create_sections_if_missing(SITEID, [1]);
+
+        $PAGE->set_url(new \moodle_url('/course/editsection.php', ['id' => get_fast_modinfo(SITEID)->get_section_info(1)->id]));
+        $this->assertFalse(plugininfo::is_enabled(\context_course::instance(SITEID), [], []));
     }
 
     /**

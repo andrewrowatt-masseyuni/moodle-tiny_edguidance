@@ -25,6 +25,7 @@ import {getPluginOptionName} from 'editor_tiny/options';
 import {pluginName} from './common';
 
 const presetsName = getPluginOptionName(pluginName, 'presets');
+const sectionIdName = getPluginOptionName(pluginName, 'sectionid');
 
 /**
  * Register the options.
@@ -36,6 +37,10 @@ export const register = (editor) => {
         processor: 'array',
         "default": [],
     });
+    editor.options.register(sectionIdName, {
+        processor: 'number',
+        "default": 0,
+    });
 };
 
 /**
@@ -45,3 +50,11 @@ export const register = (editor) => {
  * @returns {Array}
  */
 export const getPresets = (editor) => editor.options.get(presetsName);
+
+/**
+ * The section whose summary is being edited, or 0 for any other editor.
+ *
+ * @param {TinyMCE} editor
+ * @returns {number}
+ */
+export const getSectionId = (editor) => editor.options.get(sectionIdName);

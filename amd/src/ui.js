@@ -33,6 +33,7 @@ import {call as fetchMany} from 'core/ajax';
 import {getString} from 'core/str';
 import {getContextId} from 'editor_tiny/options';
 import {component, tokenClass, tokenSelector} from './common';
+import {getSectionId} from './options';
 
 /** @var {RegExp} What a key looks like. Anything else from the server is refused, not inserted. */
 const KEYPATTERN = /^[0-9a-f]{16}$/;
@@ -62,7 +63,7 @@ const placeToken = (editor, key, existing = null) => {
 
     if (existing) {
         // The server may have handed back a different key - a token pasted in from another
-        // activity gets a block of its own - so the token follows whatever came back.
+        // activity or section gets a block of its own - so the token follows whatever came back.
         editor.dom.setAttrib(existing, 'data-edguidance', key);
         editor.undoManager.add();
         editor.nodeChanged();
@@ -82,7 +83,7 @@ const placeToken = (editor, key, existing = null) => {
 const openForm = async(editor, args, existing = null) => {
     const modalForm = new ModalForm({
         formClass: 'local_edguidance\\form\\embed_form',
-        args: {contextid: getContextId(editor), ...args},
+        args: {contextid: getContextId(editor), sectionid: getSectionId(editor), ...args},
         modalConfig: {
             title: await getString('modaltitle', component),
             large: true,
@@ -112,7 +113,7 @@ export const usePreset = async(editor, slot) => {
     try {
         const result = await fetchMany([{
             methodname: 'local_edguidance_embed_preset',
-            args: {contextid: getContextId(editor), presetslot: slot},
+            args: {contextid: getContextId(editor), sectionid: getSectionId(editor), presetslot: slot},
         }])[0];
         placeToken(editor, result.key);
     } catch (error) {
