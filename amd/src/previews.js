@@ -31,6 +31,9 @@
  * has no shadow root. Not every path fires an event (undo can rewrite the body directly), so a
  * MutationObserver finds tokens as they arrive.
  *
+ * The shadow root also holds the buttons that move the token up and down (see move), for the same
+ * reason: nothing in it is ever saved.
+ *
  * @module     tiny_edguidance/previews
  * @copyright  2026 Andrew Rowatt <A.J.Rowatt@massey.ac.nz>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -41,6 +44,7 @@ import Pending from 'core/pending';
 import {call as fetchMany} from 'core/ajax';
 import {getContextId} from 'editor_tiny/options';
 import {keyPattern, tokenSelector} from './common';
+import {addMoveControls, moveStyle} from './move';
 import {getPageCss, getSectionId} from './options';
 
 /** @var {string} The class of the element in each shadow root that holds the preview. */
@@ -61,6 +65,7 @@ const shown = new WeakMap();
 const previewStyle = (hint) => `
     :host {
         display: block;
+        position: relative;
     }
     /* Clicks land on the token itself, which opens the block's form. Nothing in the guidance - a
        link, a video - acts on its own inside the editor. */
@@ -88,6 +93,7 @@ const previewStyle = (hint) => `
         white-space: nowrap;
         text-overflow: ellipsis;
     }
+    ${moveStyle}
 `;
 
 /**
@@ -113,7 +119,7 @@ const fontFaces = () => Array.from(document.styleSheets)
     .join('\n');
 
 /**
- * Give a token its shadow root, with the page's stylesheets and an empty preview.
+ * Give a token its shadow root, with the page's stylesheets, an empty preview and the move buttons.
  *
  * @param {TinyMCE} editor
  * @param {HTMLElement} token
@@ -130,13 +136,16 @@ const attach = (editor, token) => {
         root.append(link);
     });
 
+    const {labels} = states.get(editor);
+
     const style = doc.createElement('style');
-    style.textContent = previewStyle(states.get(editor).labels.hint);
+    style.textContent = previewStyle(labels.hint);
 
     const content = doc.createElement('div');
     content.className = CONTENTCLASS;
 
     root.append(style, content);
+    addMoveControls(editor, root, labels);
 
     return root;
 };
@@ -276,6 +285,8 @@ export const refresh = (editor, key) => {
  * @param {object} labels
  * @param {string} labels.chip What a token shows until its preview arrives.
  * @param {string} labels.hint What the preview's header says, where the page has a Dismiss button.
+ * @param {string} labels.up The move up button's label.
+ * @param {string} labels.down The move down button's label.
  */
 export const watch = (editor, labels) => {
     states.set(editor, {

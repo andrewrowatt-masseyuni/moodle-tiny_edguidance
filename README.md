@@ -18,7 +18,9 @@ In the editor each token shows its guidance as the page will, rendered by the
 `local_edguidance_get_previews` web service and styled with the page's own theme stylesheets, which
 the editor is given in its configuration. The preview goes in a shadow root attached to the token,
 never inside it, so it is never part of the saved text; a serializer filter also saves every token
-empty, whatever is in it. See *The preview in the editor* in `local/edguidance/README.md`.
+empty, whatever is in it. Hovering over a token shows up and down buttons at its bottom right,
+also in the shadow root, that move it past the block before or after it. See *The preview in the
+editor* in `local/edguidance/README.md`.
 
 The button is offered only to holders of `local/edguidance:manage`, only in an activity's editors, on
 a section's *Edit section* page, or on the *add an activity* form, and never in an editor rendered

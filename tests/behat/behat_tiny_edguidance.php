@@ -69,6 +69,35 @@ class behat_tiny_edguidance extends behat_base {
     }
 
     /**
+     * Click a teacher guidance block's move up or move down button.
+     *
+     * The buttons are in the token's shadow root, and only appear on hover, so they are clicked
+     * through the editor. Moving past nothing does nothing, as it does in the editor.
+     *
+     * @When /^I move teacher guidance "(?P<direction_string>up|down)" in the "(?P<editor_string>(?:[^"]|\\")*)" TinyMCE editor$/
+     * @param string $direction up or down.
+     * @param string $locator The editor.
+     */
+    public function i_move_the_guidance(string $direction, string $locator): void {
+        $this->require_tiny_tags();
+
+        $editorid = $this->get_textarea_for_locator($locator)->getAttribute('id');
+        $clicked = $this->evaluate_javascript_for_editor($editorid, <<<EOF
+            const button = instance.getBody().querySelector('div[data-edguidance]')?.shadowRoot
+                ?.querySelector('.tiny-edguidance-move button[data-direction="{$direction}"]');
+            button?.click();
+            resolve(Boolean(button));
+            EOF);
+
+        if (!$clicked) {
+            throw new ExpectationException(
+                "The \"{$locator}\" editor has no teacher guidance with a move {$direction} button.",
+                $this->getSession()
+            );
+        }
+    }
+
+    /**
      * Check that what the editor would save does not contain some text.
      *
      * @Then /^the "(?P<editor_string>(?:[^"]|\\")*)" TinyMCE editor should not save "(?P<text_string>(?:[^"]|\\")*)"$/
