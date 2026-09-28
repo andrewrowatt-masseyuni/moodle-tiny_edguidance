@@ -32,11 +32,9 @@ import Pending from 'core/pending';
 import {call as fetchMany} from 'core/ajax';
 import {getString} from 'core/str';
 import {getContextId} from 'editor_tiny/options';
-import {component, tokenClass, tokenSelector} from './common';
+import {component, keyPattern, tokenClass, tokenSelector} from './common';
 import {getSectionId} from './options';
-
-/** @var {RegExp} What a key looks like. Anything else from the server is refused, not inserted. */
-const KEYPATTERN = /^[0-9a-f]{16}$/;
+import {refresh} from './previews';
 
 /**
  * The token under the cursor, if there is one.
@@ -57,7 +55,7 @@ export const tokenAtCursor = (editor) => {
  * @param {HTMLElement|null} existing The token being edited, if any.
  */
 const placeToken = (editor, key, existing = null) => {
-    if (!KEYPATTERN.test(key)) {
+    if (!keyPattern.test(key)) {
         throw new Error('Unexpected teacher guidance key');
     }
 
@@ -67,6 +65,8 @@ const placeToken = (editor, key, existing = null) => {
         editor.dom.setAttrib(existing, 'data-edguidance', key);
         editor.undoManager.add();
         editor.nodeChanged();
+        // The guidance has just changed, whether or not its key has.
+        refresh(editor, key);
         return;
     }
 

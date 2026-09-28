@@ -26,6 +26,7 @@ defined('MOODLE_INTERNAL') || die();
 
 $string['buttontitle'] = 'Teacher guidance';
 $string['chiplabel'] = 'Teacher guidance (only teachers see this) - click to edit';
+$string['clicktoedit'] = 'Click to edit';
 $string['editguidance'] = 'Edit this teacher guidance';
 $string['modaltitle'] = 'Teacher guidance';
 $string['pluginname'] = 'Teacher guidance';

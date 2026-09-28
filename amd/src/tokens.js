@@ -17,46 +17,32 @@
  * How a guidance token looks and behaves inside the editor.
  *
  * The token saved into the text is an empty <div data-edguidance="KEY">: it carries no guidance, so
- * an empty div is all an editor would show. In here it is drawn as a labelled, non-editable chip
- * instead - the label comes from a stylesheet ::before, and contenteditable is added on the way in
- * and removed on the way out - so nothing extra is ever saved.
+ * an empty div is all an editor would show. In here it shows the guidance as the page will (see
+ * previews), as one non-editable unit that opens the guidance form when clicked. contenteditable is
+ * added on the way in and taken off on the way out, and the preview is never inside the token, so
+ * nothing extra is ever saved.
  *
  * @module     tiny_edguidance/tokens
  * @copyright  2026 Andrew Rowatt <A.J.Rowatt@massey.ac.nz>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {getString} from 'core/str';
+import {getStrings} from 'core/str';
 import {registerPlaceholderSelectors} from 'editor_tiny/options';
 import {component, tokenSelector} from './common';
+import {watch} from './previews';
 import {editGuidance} from './ui';
 
 /**
- * The chip's stylesheet, for the editor's own document.
+ * The token's stylesheet, for the editor's own document. What it shows is styled in its shadow root.
  *
- * @param {string} label The chip's text.
  * @returns {string}
  */
-const chipStyle = (label) => `
+const tokenStyle = () => `
     ${tokenSelector} {
         display: block;
-        margin: 0.5rem 0;
-        padding: 0.35rem 0.6rem;
-        border-left: 3px solid #2f8a9b;
-        background-color: #2f8a9b14;
-        color: #12545f;
-        font-size: 0.85rem;
-        font-weight: 600;
         cursor: pointer;
         user-select: none;
-        overflow: hidden;
-        white-space: nowrap;
-        line-height: 1.4;
-        height: 1.4em;
-        box-sizing: content-box;
-    }
-    ${tokenSelector}::before {
-        content: ${JSON.stringify('\u{1F4A1} ' + label)};
     }
     ${tokenSelector}[data-mce-selected] {
         outline: 2px solid #0f6cbf;
@@ -64,27 +50,37 @@ const chipStyle = (label) => `
 `;
 
 export const getSetup = async() => {
-    const label = await getString('chiplabel', component);
+    const [chip, hint] = await getStrings([
+        {key: 'chiplabel', component},
+        {key: 'clicktoedit', component},
+    ]);
 
     return (editor) => {
         // Tells Moodle's accessibility checker this is a placeholder, not content to be judged.
         registerPlaceholderSelectors(editor, [tokenSelector]);
 
+        // However the text is read - saved, autosaved, copied, with or without events - a token comes
+        // out as exactly the token: no contenteditable, and nothing inside it. The preview never is
+        // inside it, but the source code view or a paste could put anything there, and the filter
+        // strips a token only up to its first </div>.
+        editor.on('PreInit', () => {
+            editor.serializer.addAttributeFilter('data-edguidance', (nodes) => nodes.forEach((node) => {
+                node.attr('contenteditable', null);
+                node.empty();
+            }));
+        });
+
         editor.on('init', () => {
-            editor.dom.addStyle(chipStyle(label));
+            editor.dom.addStyle(tokenStyle());
+            watch(editor, {chip, hint});
         });
 
         // Whenever content arrives - initial load, paste, undo - make every token non-editable, so
-        // its (padding) content cannot be typed into and it moves as one unit.
+        // it cannot be typed into and it moves as one unit.
         editor.on('SetContent', () => {
             editor.getBody().querySelectorAll(`${tokenSelector}:not([contenteditable])`).forEach((node) => {
                 node.contentEditable = false;
             });
-        });
-
-        // ...and take that back off on the way out, so the saved token stays exactly the token.
-        editor.on('PreProcess', (event) => {
-            event.node.querySelectorAll(tokenSelector).forEach((node) => node.removeAttribute('contenteditable'));
         });
 
         editor.on('click', (event) => {

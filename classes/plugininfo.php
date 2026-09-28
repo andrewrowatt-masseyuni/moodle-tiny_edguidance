@@ -134,7 +134,8 @@ class plugininfo extends plugin implements plugin_with_buttons, plugin_with_conf
     }
 
     /**
-     * The site presets on offer, for the button's menu, and the section being edited, if any.
+     * The site presets on offer, for the button's menu; the section being edited, if any; and the
+     * page's theme stylesheets, for the guidance preview.
      *
      * @param context $context The editor's context.
      * @param array $options The editor options.
@@ -154,6 +155,25 @@ class plugininfo extends plugin implements plugin_with_buttons, plugin_with_conf
             $presets[] = ['slot' => $slot, 'title' => format_string($title, true, ['context' => $context, 'escape' => false])];
         }
 
-        return ['presets' => $presets, 'sectionid' => self::section_being_edited($context)];
+        return [
+            'presets' => $presets,
+            'sectionid' => self::section_being_edited($context),
+            'pagecss' => self::page_css(),
+        ];
+    }
+
+    /**
+     * The page's own theme stylesheets.
+     *
+     * The editor's iframe carries only the theme's editor stylesheet, which knows nothing of how a
+     * guidance block looks; the preview links these as well, so that it looks as it will on the
+     * page. They are the ones the page around the editor has already loaded.
+     *
+     * @return string[] URLs.
+     */
+    protected static function page_css(): array {
+        global $PAGE;
+
+        return array_map(fn(\moodle_url $url): string => $url->out(false), $PAGE->theme->css_urls($PAGE));
     }
 }

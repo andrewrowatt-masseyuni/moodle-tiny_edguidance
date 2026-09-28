@@ -140,4 +140,22 @@ final class plugininfo_test extends \advanced_testcase {
             ['slot' => 4, 'title' => 'Q&A sessions'],
         ], $config['presets']);
     }
+
+    /**
+     * The preview is given the page's own theme stylesheets, not the editor's.
+     */
+    public function test_configuration_gives_the_page_stylesheets(): void {
+        global $PAGE;
+
+        $this->resetAfterTest();
+
+        $config = plugininfo::get_plugin_configuration_for_context(\context_system::instance(), [], []);
+
+        $this->assertNotEmpty($config['pagecss']);
+        $this->assertSame(
+            array_map(fn(\moodle_url $url): string => $url->out(false), $PAGE->theme->css_urls($PAGE)),
+            $config['pagecss']
+        );
+        $this->assertNotContains($PAGE->theme->editor_css_url()->out(false), $config['pagecss']);
+    }
 }

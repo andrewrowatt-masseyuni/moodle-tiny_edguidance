@@ -29,4 +29,6 @@ export default {
     // The token, as local_edguidance\token writes it. Only the attribute matters for matching.
     tokenSelector: 'div[data-edguidance]',
     tokenClass: 'edguidance-embed',
+    // What a key looks like. Anything else is neither sent to the server nor inserted.
+    keyPattern: /^[0-9a-f]{16}$/,
 };

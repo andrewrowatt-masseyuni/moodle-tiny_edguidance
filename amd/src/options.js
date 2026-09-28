@@ -26,6 +26,7 @@ import {pluginName} from './common';
 
 const presetsName = getPluginOptionName(pluginName, 'presets');
 const sectionIdName = getPluginOptionName(pluginName, 'sectionid');
+const pageCssName = getPluginOptionName(pluginName, 'pagecss');
 
 /**
  * Register the options.
@@ -40,6 +41,10 @@ export const register = (editor) => {
     editor.options.register(sectionIdName, {
         processor: 'number',
         "default": 0,
+    });
+    editor.options.register(pageCssName, {
+        processor: 'array',
+        "default": [],
     });
 };
 
@@ -58,3 +63,11 @@ export const getPresets = (editor) => editor.options.get(presetsName);
  * @returns {number}
  */
 export const getSectionId = (editor) => editor.options.get(sectionIdName);
+
+/**
+ * The page's own theme stylesheets, for the guidance preview.
+ *
+ * @param {TinyMCE} editor
+ * @returns {Array}
+ */
+export const getPageCss = (editor) => editor.options.get(pageCssName);

@@ -12,8 +12,13 @@ Adds a **Teacher guidance** menu to the TinyMCE toolbar (and to the Insert menu)
 
 The form is `local_edguidance\form\embed_form`, opened with `core_form/modalform`; the one-click path
 is the `local_edguidance_embed_preset` web service. Either way the server returns a key, and all this
-plugin ever puts in the text is the token for it. In the editor the token is drawn as a labelled,
-non-editable chip; nothing but the bare token is saved.
+plugin ever puts in the text is the token for it.
+
+In the editor each token shows its guidance as the page will, rendered by the
+`local_edguidance_get_previews` web service and styled with the page's own theme stylesheets, which
+the editor is given in its configuration. The preview goes in a shadow root attached to the token,
+never inside it, so it is never part of the saved text; a serializer filter also saves every token
+empty, whatever is in it. See *The preview in the editor* in `local/edguidance/README.md`.
 
 The button is offered only to holders of `local/edguidance:manage`, only in an activity's editors, on
 a section's *Edit section* page, or on the *add an activity* form, and never in an editor rendered
