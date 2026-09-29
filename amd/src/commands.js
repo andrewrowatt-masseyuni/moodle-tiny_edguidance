@@ -25,6 +25,7 @@ import {getString} from 'core/str';
 import {getButtonImage} from 'editor_tiny/utils';
 import {buttonName, component, icon} from './common';
 import {getPresets} from './options';
+import {hasHiddenDismissed, showDismissed} from './previews';
 import {editGuidance, startBlank, startWithPreset, tokenAtCursor, usePreset} from './ui';
 
 export const getSetup = async() => {
@@ -34,6 +35,7 @@ export const getSetup = async() => {
         useText,
         startText,
         blankText,
+        showDismissedText,
         buttonImage,
     ] = await Promise.all([
         getString('buttontitle', component),
@@ -41,12 +43,14 @@ export const getSetup = async() => {
         getString('usepreset', component),
         getString('startpreset', component),
         getString('startblank', component),
+        getString('showdismissed', component),
         getButtonImage('icon', component),
     ]);
 
     return (editor) => {
         /**
-         * The menu: edit the block under the cursor if there is one, then the three ways to add one.
+         * The menu: edit the block under the cursor if there is one, then the three ways to add one,
+         * then - while there is dismissed guidance in the text that is not showing - a way to show it.
          *
          * Built each time it opens, because what is under the cursor changes.
          *
@@ -84,6 +88,12 @@ export const getSetup = async() => {
             }
 
             items.push({type: 'menuitem', text: blankText, onAction: () => startBlank(editor)});
+
+            // Once shown it stays shown, so there is nothing to offer after that.
+            if (hasHiddenDismissed(editor)) {
+                items.push({type: 'separator'});
+                items.push({type: 'menuitem', text: showDismissedText, onAction: () => showDismissed(editor)});
+            }
 
             return items;
         };

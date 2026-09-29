@@ -21,16 +21,21 @@
  * local_edguidance's own form in a modal. Either way the server hands back a key, and all this module
  * ever puts in the text is the token for that key.
  *
+ * Editing a block also offers to delete it - after asking, because the text is shared and deleting
+ * takes it away from every teacher, not just this one - and, if this teacher has dismissed it, to
+ * restore it for them.
+ *
  * @module     tiny_edguidance/ui
  * @copyright  2026 Andrew Rowatt <A.J.Rowatt@massey.ac.nz>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+import ModalEvents from 'core/modal_events';
 import ModalForm from 'core_form/modalform';
 import Notification from 'core/notification';
 import Pending from 'core/pending';
 import {call as fetchMany} from 'core/ajax';
-import {getString} from 'core/str';
+import {getString, getStrings} from 'core/str';
 import {getContextId} from 'editor_tiny/options';
 import {component, keyPattern, tokenClass, tokenSelector} from './common';
 import {getSectionId} from './options';
@@ -73,6 +78,129 @@ const placeToken = (editor, key, existing = null) => {
     editor.insertContent(`<div class="${tokenClass}" data-edguidance="${key}"></div>`);
 };
 
+/** @var {string} The notice local_edguidance's form carries for a block this teacher has dismissed. */
+const DISMISSEDNOTICE = '[data-region="edguidance-dismissednotice"]';
+
+/**
+ * A button for the guidance form's footer.
+ *
+ * @param {string} text
+ * @param {string} classes
+ * @param {string} action
+ * @returns {HTMLButtonElement}
+ */
+const footerButton = (text, classes, action) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = classes;
+    button.dataset.action = action;
+    button.textContent = text;
+    return button;
+};
+
+/**
+ * Take a token out of the text, in one undo step.
+ *
+ * Only the token goes: the block itself is left to go the way of any token deleted by hand, so
+ * nothing is lost until the text is saved, and undo brings it straight back until then.
+ *
+ * @param {TinyMCE} editor
+ * @param {HTMLElement} token The token as it was when the form was opened.
+ */
+const removeToken = (editor, token) => {
+    const key = token.dataset.edguidance || '';
+    // TinyMCE rebuilds tokens freely - undo, say - so the one clicked may since have been replaced.
+    const target = token.isConnected ? token : Array.from(editor.getBody().querySelectorAll(tokenSelector))
+        .find((candidate) => candidate.dataset.edguidance === key);
+    if (!target) {
+        return;
+    }
+
+    editor.undoManager.transact(() => editor.dom.remove(target));
+    editor.nodeChanged();
+};
+
+/**
+ * Add Restore and Delete to the footer of the form for a block already in the text.
+ *
+ * Restore is shown only while the form carries local_edguidance's dismissed notice, which is
+ * re-read whenever the form is redrawn - after a failed save, say.
+ *
+ * @param {TinyMCE} editor
+ * @param {ModalForm} modalForm
+ * @param {HTMLElement} token The token being edited.
+ */
+const addActions = async(editor, modalForm, token) => {
+    const pending = new Pending('tiny_edguidance/ui:addactions');
+    let strings;
+    try {
+        strings = await getStrings([
+            {key: 'restore', component},
+            {key: 'delete', component},
+            {key: 'deletetitle', component},
+            {key: 'deleteconfirm', component},
+        ]);
+    } catch (error) {
+        // The form still saves and cancels without them.
+        Notification.exception(error);
+        pending.resolve();
+        return;
+    }
+    const [restoreText, deleteText, deleteTitle, deleteQuestion] = strings;
+
+    const modal = modalForm.modal;
+    const root = modal.getRoot()[0];
+    const restore = footerButton(restoreText, 'btn btn-secondary', 'tiny-edguidance-restore');
+    const remove = footerButton(deleteText, 'btn btn-outline-danger', 'tiny-edguidance-delete');
+    const actions = document.createElement('div');
+    actions.className = 'mr-auto';
+    actions.append(restore, ' ', remove);
+    modal.getFooter()[0].prepend(actions);
+
+    const showRestore = () => {
+        restore.hidden = !root.querySelector(DISMISSEDNOTICE);
+    };
+    modal.getRoot().on(ModalEvents.bodyRendered, showRestore);
+    showRestore();
+
+    restore.addEventListener('click', async() => {
+        const notice = root.querySelector(DISMISSEDNOTICE);
+        if (!notice) {
+            return;
+        }
+
+        const restoring = new Pending('tiny_edguidance/ui:restore');
+        try {
+            await fetchMany([{
+                methodname: 'local_edguidance_set_dismissed',
+                args: {guidanceid: parseInt(notice.dataset.guidanceid, 10), dismissed: false},
+            }])[0];
+            notice.remove();
+            showRestore();
+            remove.focus();
+            // The token has been previewing a notice in place of the guidance.
+            refresh(editor, token.dataset.edguidance || '');
+        } catch (error) {
+            Notification.exception(error);
+        }
+        restoring.resolve();
+    });
+
+    remove.addEventListener('click', async() => {
+        try {
+            await Notification.deleteCancelPromise(deleteTitle, deleteQuestion, deleteText, {triggerElement: remove});
+        } catch (cancelled) {
+            return;
+        }
+
+        removeToken(editor, token);
+        modal.hide();
+        editor.focus();
+    });
+
+    pending.resolve();
+};
+
 /**
  * Open the guidance form in a modal.
  *
@@ -97,6 +225,10 @@ const openForm = async(editor, args, existing = null) => {
             Notification.exception(error);
         }
     });
+
+    if (existing) {
+        modalForm.addEventListener(modalForm.events.LOADED, () => addActions(editor, modalForm, existing));
+    }
 
     modalForm.show();
 };

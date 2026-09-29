@@ -34,6 +34,11 @@
  * The shadow root also holds the buttons that move the token up and down (see move), for the same
  * reason: nothing in it is ever saved.
  *
+ * Guidance the teacher has dismissed shows nothing at all, as on the page, until they choose "Show
+ * dismissed guidance" from the menu. From then on, in that editor only and until the page is left,
+ * it shows in full over a hatch, so it cannot be taken for guidance they will see on the page. There
+ * is deliberately no way to hide it again short of reloading.
+ *
  * @module     tiny_edguidance/previews
  * @copyright  2026 Andrew Rowatt <A.J.Rowatt@massey.ac.nz>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -50,19 +55,23 @@ import {getPageCss, getSectionId} from './options';
 /** @var {string} The class of the element in each shadow root that holds the preview. */
 const CONTENTCLASS = 'tiny-edguidance-preview';
 
+/** @var {string} Added to that element while it shows guidance the teacher has dismissed. */
+const DISMISSEDCLASS = 'tiny-edguidance-dismissed';
+
 /** @var {WeakMap<object, object>} Each editor's previews, and what it has asked for. */
 const states = new WeakMap();
 
-/** @var {WeakMap<HTMLElement, string|null>} What each token is showing: preview HTML, or null for the chip. */
+/** @var {WeakMap<HTMLElement, string>} What each token is showing, as viewKey() describes it. */
 const shown = new WeakMap();
 
 /**
  * The stylesheet inside each shadow root, after the page's own.
  *
  * @param {string} hint What the header says in place of the page's Dismiss button.
+ * @param {string} dismissedHint What it says on guidance the teacher has dismissed.
  * @returns {string}
  */
-const previewStyle = (hint) => `
+const previewStyle = (hint, dismissedHint) => `
     :host {
         display: block;
         position: relative;
@@ -78,6 +87,14 @@ const previewStyle = (hint) => `
         font-size: 0.8rem;
         font-weight: 500;
         color: #0f7b8f;
+    }
+    /* Dismissed guidance, shown on request: hatched, and saying so, since a pattern alone is easy to
+       miss. */
+    .${DISMISSEDCLASS} .edguidance-card {
+        background-image: repeating-linear-gradient(-45deg, rgba(47, 138, 155, 0.16) 0 1px, transparent 1px 7px);
+    }
+    .${DISMISSEDCLASS} .edguidance-header::after {
+        content: ${JSON.stringify(dismissedHint)};
     }
     /* Until the preview arrives, or if it cannot. */
     .tiny-edguidance-chip {
@@ -139,7 +156,7 @@ const attach = (editor, token) => {
     const {labels} = states.get(editor);
 
     const style = doc.createElement('style');
-    style.textContent = previewStyle(labels.hint);
+    style.textContent = previewStyle(labels.hint, labels.dismissedHint);
 
     const content = doc.createElement('div');
     content.className = CONTENTCLASS;
@@ -151,7 +168,25 @@ const attach = (editor, token) => {
 };
 
 /**
- * Show a token's preview, or the chip until there is one.
+ * What a token should show.
+ *
+ * @param {object} state The editor's state.
+ * @param {object|undefined} preview The token's preview, if it has arrived.
+ * @returns {{mode: string, html: string}} mode is chip (until the preview arrives, or if it cannot),
+ *     hidden (dismissed, and not asked for), dismissed (asked for) or shown.
+ */
+const viewFor = (state, preview) => {
+    if (!preview) {
+        return {mode: 'chip', html: ''};
+    }
+    if (preview.dismissed) {
+        return state.showDismissed ? {mode: 'dismissed', html: preview.html} : {mode: 'hidden', html: ''};
+    }
+    return {mode: 'shown', html: preview.html};
+};
+
+/**
+ * Show a token's preview, the chip until there is one, or nothing for dismissed guidance.
  *
  * @param {TinyMCE} editor
  * @param {HTMLElement} token
@@ -165,26 +200,31 @@ const show = (editor, token) => {
     }
 
     const key = token.dataset.edguidance || '';
-    const html = keyPattern.test(key) ? state.html.get(key) : undefined;
-    if (html === undefined && keyPattern.test(key)) {
+    const preview = keyPattern.test(key) ? state.previews.get(key) : undefined;
+    if (preview === undefined && keyPattern.test(key)) {
         want(editor, key);
     }
 
-    const next = html ?? null;
-    if (token.shadowRoot && shown.get(token) === next) {
+    const view = viewFor(state, preview);
+    const viewKey = `${view.mode}:${view.html}`;
+    if (token.shadowRoot && shown.get(token) === viewKey) {
         return;
     }
 
     const content = (token.shadowRoot || attach(editor, token)).querySelector(`.${CONTENTCLASS}`);
-    if (next === null) {
+    content.classList.toggle(DISMISSEDCLASS, view.mode === 'dismissed');
+    if (view.mode === 'chip') {
         const chip = token.ownerDocument.createElement('div');
         chip.className = 'tiny-edguidance-chip';
         chip.textContent = `\u{1F4A1} ${state.labels.chip}`;
         content.replaceChildren(chip);
+    } else if (view.mode === 'hidden') {
+        // Nothing, so the token takes no space. Its move buttons only show while it is hovered.
+        content.replaceChildren();
     } else {
-        content.innerHTML = next;
+        content.innerHTML = view.html;
     }
-    shown.set(token, next);
+    shown.set(token, viewKey);
 };
 
 /**
@@ -224,9 +264,9 @@ const send = async(editor) => {
             args: {contextid: getContextId(editor), sectionid: getSectionId(editor), keys},
         }])[0];
 
-        previews.forEach(({key, html}) => {
+        previews.forEach(({key, html, dismissed}) => {
             if (state.asked.get(key) === batch) {
-                state.html.set(key, html);
+                state.previews.set(key, {html, dismissed});
             }
         });
         if (!editor.removed) {
@@ -251,7 +291,7 @@ const send = async(editor) => {
  */
 const want = (editor, key, again = false) => {
     const state = states.get(editor);
-    if (!again && (state.html.has(key) || state.asked.has(key))) {
+    if (!again && (state.previews.has(key) || state.asked.has(key))) {
         return;
     }
 
@@ -277,6 +317,37 @@ export const refresh = (editor, key) => {
 };
 
 /**
+ * Whether the editor holds dismissed guidance that it is not showing.
+ *
+ * Only once its preview has arrived, since until then nobody knows it is dismissed.
+ *
+ * @param {TinyMCE} editor
+ * @returns {boolean}
+ */
+export const hasHiddenDismissed = (editor) => {
+    const state = states.get(editor);
+    if (!state || state.showDismissed) {
+        return false;
+    }
+
+    return Array.from(editor.getBody().querySelectorAll(tokenSelector))
+        .some((token) => state.previews.get(token.dataset.edguidance || '')?.dismissed);
+};
+
+/**
+ * Show dismissed guidance in this editor, from now until the page is left.
+ *
+ * @param {TinyMCE} editor
+ */
+export const showDismissed = (editor) => {
+    const state = states.get(editor);
+    if (state) {
+        state.showDismissed = true;
+        showAll(editor);
+    }
+};
+
+/**
  * Preview every token in the editor, now and whenever one arrives.
  *
  * Call once the editor's body exists.
@@ -285,14 +356,17 @@ export const refresh = (editor, key) => {
  * @param {object} labels
  * @param {string} labels.chip What a token shows until its preview arrives.
  * @param {string} labels.hint What the preview's header says, where the page has a Dismiss button.
+ * @param {string} labels.dismissedHint What it says instead on guidance the teacher has dismissed.
  * @param {string} labels.up The move up button's label.
  * @param {string} labels.down The move down button's label.
  */
 export const watch = (editor, labels) => {
     states.set(editor, {
         labels,
-        // Key => preview HTML.
-        html: new Map(),
+        // Key => {html, dismissed}.
+        previews: new Map(),
+        // Whether the teacher has asked to see guidance they have dismissed.
+        showDismissed: false,
         // Key => the batch that last asked for it.
         asked: new Map(),
         batch: 0,

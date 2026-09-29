@@ -25,11 +25,11 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'tiny_edguidance';
-$plugin->release = '0.2.0';
-$plugin->version = 2026092800;
+$plugin->release = '0.3.0';
+$plugin->version = 2026092900;
 $plugin->requires = 2024100700;
 $plugin->supported = [405, 405];
 $plugin->maturity = MATURITY_BETA;
 $plugin->dependencies = [
-    'local_edguidance' => 2026092800,
+    'local_edguidance' => 2026092900,
 ];

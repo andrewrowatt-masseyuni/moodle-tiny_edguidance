@@ -8,7 +8,10 @@ Adds a **Teacher guidance** menu to the TinyMCE toolbar (and to the Insert menu)
 * **Use a preset** > *title* - embeds a site preset, linked and read-only. No dialogue.
 * **Start with a preset** > *title* - opens the guidance form pre-filled with a copy of the preset.
 * **Start with blank** - opens the guidance form empty.
-* **Edit this guidance** - when the cursor is on existing guidance (or click it).
+* **Edit this guidance** - when the cursor is on existing guidance (or click it). The form's footer
+  also has **Delete**, which warns first that the guidance goes for every teacher once the text is
+  saved, and then takes the token out of the text in one undo step; and, for guidance you have
+  marked as read, **Restore**.
 
 The form is `local_edguidance\form\embed_form`, opened with `core_form/modalform`; the one-click path
 is the `local_edguidance_embed_preset` web service. Either way the server returns a key, and all this
@@ -20,7 +23,9 @@ the editor is given in its configuration. The preview goes in a shadow root atta
 never inside it, so it is never part of the saved text; a serializer filter also saves every token
 empty, whatever is in it. Hovering over a token shows up and down buttons at its bottom right,
 also in the shadow root, that move it past the block before or after it. See *The preview in the
-editor* in `local/edguidance/README.md`.
+editor* in `local/edguidance/README.md`. Guidance you have marked as read shows nothing, until you
+choose **Show guidance marked as read** from the menu (offered only while some is hidden); then, in
+that editor until you leave the page, it shows in full over a light hatch.
 
 The button is offered only to holders of `local/edguidance:manage`, only in an activity's editors, on
 a section's *Edit section* page, or on the *add an activity* form, and never in an editor rendered

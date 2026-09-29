@@ -51,21 +51,85 @@ class behat_tiny_edguidance extends behat_base {
      * @param string $text The text.
      */
     public function the_editor_should_preview_guidance(string $locator, string $text): void {
+        $this->check_previews($locator, $text, true, false);
+    }
+
+    /**
+     * Check that the editor previews no teacher guidance containing some text.
+     *
+     * @Then /^the "(?P<editor_string>(?:[^"]|\\")*)" TinyMCE editor should not preview guidance "(?P<text_string>(?:[^"]|\\")*)"$/
+     * @param string $locator The editor.
+     * @param string $text The text.
+     */
+    public function the_editor_should_not_preview_guidance(string $locator, string $text): void {
+        $this->check_previews($locator, $text, false, false);
+    }
+
+    /**
+     * Check that the editor previews, hatched, dismissed teacher guidance containing some text.
+     *
+     * @Then /^the "(?P<editor_string>[^"]*)" TinyMCE editor should preview dismissed guidance "(?P<text_string>[^"]*)"$/
+     * @param string $locator The editor.
+     * @param string $text The text.
+     */
+    public function the_editor_should_preview_dismissed_guidance(string $locator, string $text): void {
+        $this->check_previews($locator, $text, true, true);
+    }
+
+    /**
+     * Check that the editor previews no dismissed teacher guidance containing some text.
+     *
+     * @Then /^the "(?P<editor_string>[^"]*)" TinyMCE editor should not preview dismissed guidance "(?P<text_string>[^"]*)"$/
+     * @param string $locator The editor.
+     * @param string $text The text.
+     */
+    public function the_editor_should_not_preview_dismissed_guidance(string $locator, string $text): void {
+        $this->check_previews($locator, $text, false, true);
+    }
+
+    /**
+     * Check whether the editor previews guidance containing some text.
+     *
+     * @param string $locator The editor.
+     * @param string $text The text.
+     * @param bool $expected Whether it should.
+     * @param bool $dismissedonly Look only at dismissed guidance the teacher has asked to see.
+     */
+    protected function check_previews(string $locator, string $text, bool $expected, bool $dismissedonly): void {
+        $previews = $this->get_previews($locator, $dismissedonly);
+        if (str_contains($previews, $text) === $expected) {
+            return;
+        }
+
+        $what = $dismissedonly ? 'dismissed guidance' : 'guidance';
+        throw new ExpectationException(
+            $expected
+                ? "The \"{$locator}\" editor previews no {$what} containing \"{$text}\". It previews: {$previews}"
+                : "The \"{$locator}\" editor previews {$what} containing \"{$text}\": {$previews}",
+            $this->getSession()
+        );
+    }
+
+    /**
+     * The text of every preview in an editor, one per line.
+     *
+     * @param string $locator The editor.
+     * @param bool $dismissedonly Only the previews of dismissed guidance the teacher has asked to see.
+     * @return string
+     */
+    protected function get_previews(string $locator, bool $dismissedonly = false): string {
         $this->require_tiny_tags();
 
         $editorid = $this->get_textarea_for_locator($locator)->getAttribute('id');
-        $previews = $this->evaluate_javascript_for_editor($editorid, <<<EOF
+        $only = $dismissedonly ? 'true' : 'false';
+
+        return (string)$this->evaluate_javascript_for_editor($editorid, <<<EOF
             resolve(Array.from(instance.getBody().querySelectorAll('div[data-edguidance]'))
-                .map((token) => token.shadowRoot?.querySelector('.tiny-edguidance-preview')?.textContent ?? '')
+                .map((token) => token.shadowRoot?.querySelector('.tiny-edguidance-preview'))
+                .filter((content) => content && (!{$only} || content.classList.contains('tiny-edguidance-dismissed')))
+                .map((content) => content.textContent)
                 .join('\\n'));
             EOF);
-
-        if (!str_contains((string)$previews, $text)) {
-            throw new ExpectationException(
-                "The \"{$locator}\" editor previews no guidance containing \"{$text}\". It previews: {$previews}",
-                $this->getSession()
-            );
-        }
     }
 
     /**
