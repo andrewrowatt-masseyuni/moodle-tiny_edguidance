@@ -37,7 +37,8 @@
  * Guidance the teacher has dismissed shows nothing at all, as on the page, until they choose "Show
  * dismissed guidance" from the menu. From then on, in that editor only and until the page is left,
  * it shows in full over a hatch, so it cannot be taken for guidance they will see on the page. There
- * is deliberately no way to hide it again short of reloading.
+ * is deliberately no way to hide it again short of reloading. A task says it was marked as complete
+ * rather than as read, as the page does.
  *
  * @module     tiny_edguidance/previews
  * @copyright  2026 Andrew Rowatt <A.J.Rowatt@massey.ac.nz>
@@ -67,11 +68,17 @@ const shown = new WeakMap();
 /**
  * The stylesheet inside each shadow root, after the page's own.
  *
- * @param {string} hint What the header says in place of the page's Dismiss button.
- * @param {string} dismissedHint What it says on guidance the teacher has dismissed.
+ * Colours come from the category's palette in local_edguidance's styles.css, which the page's
+ * stylesheets carry. The hatch and the chip are neutral: the hatch sits over every category, and the
+ * chip shows before anyone knows which category the guidance is.
+ *
+ * @param {object} labels
+ * @param {string} labels.hint What the header says in place of the page's Dismiss button.
+ * @param {string} labels.dismissedHint What it says on guidance the teacher has dismissed.
+ * @param {string} labels.completedHint What it says instead on a task the teacher has dismissed.
  * @returns {string}
  */
-const previewStyle = (hint, dismissedHint) => `
+const previewStyle = ({hint, dismissedHint, completedHint}) => `
     :host {
         display: block;
         position: relative;
@@ -86,23 +93,26 @@ const previewStyle = (hint, dismissedHint) => `
         margin-left: auto;
         font-size: 0.8rem;
         font-weight: 500;
-        color: #0f7b8f;
+        color: var(--edguidance-action, #495057);
     }
     /* Dismissed guidance, shown on request: hatched, and saying so, since a pattern alone is easy to
        miss. */
     .${DISMISSEDCLASS} .edguidance-card {
-        background-image: repeating-linear-gradient(-45deg, rgba(47, 138, 155, 0.16) 0 1px, transparent 1px 7px);
+        background-image: repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.1) 0 1px, transparent 1px 7px);
     }
     .${DISMISSEDCLASS} .edguidance-header::after {
         content: ${JSON.stringify(dismissedHint)};
+    }
+    .${DISMISSEDCLASS} :is(.edguidance-task, .edguidance-optionaltask) .edguidance-header::after {
+        content: ${JSON.stringify(completedHint)};
     }
     /* Until the preview arrives, or if it cannot. */
     .tiny-edguidance-chip {
         margin: 0.5rem 0;
         padding: 0.35rem 0.6rem;
-        border-left: 3px solid #2f8a9b;
-        background-color: #2f8a9b14;
-        color: #12545f;
+        border-left: 3px solid #adb5bd;
+        background-color: #f1f3f5;
+        color: #495057;
         font-size: 0.85rem;
         font-weight: 600;
         line-height: 1.4;
@@ -156,7 +166,7 @@ const attach = (editor, token) => {
     const {labels} = states.get(editor);
 
     const style = doc.createElement('style');
-    style.textContent = previewStyle(labels.hint, labels.dismissedHint);
+    style.textContent = previewStyle(labels);
 
     const content = doc.createElement('div');
     content.className = CONTENTCLASS;
@@ -357,6 +367,7 @@ export const showDismissed = (editor) => {
  * @param {string} labels.chip What a token shows until its preview arrives.
  * @param {string} labels.hint What the preview's header says, where the page has a Dismiss button.
  * @param {string} labels.dismissedHint What it says instead on guidance the teacher has dismissed.
+ * @param {string} labels.completedHint What it says instead on a task the teacher has dismissed.
  * @param {string} labels.up The move up button's label.
  * @param {string} labels.down The move down button's label.
  */

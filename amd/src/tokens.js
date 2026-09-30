@@ -50,10 +50,11 @@ const tokenStyle = () => `
 `;
 
 export const getSetup = async() => {
-    const [chip, hint, dismissedHint, up, down] = await getStrings([
+    const [chip, hint, dismissedHint, completedHint, up, down] = await getStrings([
         {key: 'chiplabel', component},
         {key: 'clicktoedit', component},
         {key: 'clicktoeditdismissed', component},
+        {key: 'clicktoeditcompleted', component},
         {key: 'moveup', component},
         {key: 'movedown', component},
     ]);
@@ -75,7 +76,7 @@ export const getSetup = async() => {
 
         editor.on('init', () => {
             editor.dom.addStyle(tokenStyle());
-            watch(editor, {chip, hint, dismissedHint, up, down});
+            watch(editor, {chip, hint, dismissedHint, completedHint, up, down});
         });
 
         // Whenever content arrives - initial load, paste, undo - make every token non-editable, so

@@ -27,6 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 $string['buttontitle'] = 'Teacher guidance';
 $string['chiplabel'] = 'Teacher guidance (only teachers see this) - click to edit';
 $string['clicktoedit'] = 'Click to edit';
+$string['clicktoeditcompleted'] = 'Marked as complete - click to edit';
 $string['clicktoeditdismissed'] = 'Marked as read - click to edit';
 $string['delete'] = 'Delete';
 $string['deleteconfirm'] = 'This deletes the teacher guidance for every teacher, not just you, when you save your changes. Are you sure?';

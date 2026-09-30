@@ -11,7 +11,8 @@ Adds a **Teacher guidance** menu to the TinyMCE toolbar (and to the Insert menu)
 * **Edit this guidance** - when the cursor is on existing guidance (or click it). The form's footer
   also has **Delete**, which warns first that the guidance goes for every teacher once the text is
   saved, and then takes the token out of the text in one undo step; and, for guidance you have
-  marked as read, **Restore**.
+  marked as read (or, for a task, as complete), **Restore**. The form also sets the guidance's
+  category - note, recommendation, task or optional task - and an optional heading.
 
 The form is `local_edguidance\form\embed_form`, opened with `core_form/modalform`; the one-click path
 is the `local_edguidance_embed_preset` web service. Either way the server returns a key, and all this
@@ -25,7 +26,8 @@ empty, whatever is in it. Hovering over a token shows up and down buttons at its
 also in the shadow root, that move it past the block before or after it. See *The preview in the
 editor* in `local/edguidance/README.md`. Guidance you have marked as read shows nothing, until you
 choose **Show guidance marked as read** from the menu (offered only while some is hidden); then, in
-that editor until you leave the page, it shows in full over a light hatch.
+that editor until you leave the page, it shows in full over a light hatch, marked *Marked as read*
+or, for a task, *Marked as complete*.
 
 The button is offered only to holders of `local/edguidance:manage`, only in an activity's editors, on
 a section's *Edit section* page, or on the *add an activity* form, and never in an editor rendered
