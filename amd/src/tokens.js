@@ -18,9 +18,11 @@
  *
  * The token saved into the text is an empty <div data-edguidance="KEY">: it carries no guidance, so
  * an empty div is all an editor would show. In here it shows the guidance as the page will (see
- * previews), as one non-editable unit that opens the guidance form when clicked. contenteditable is
- * added on the way in and taken off on the way out, and the preview is never inside the token, so
- * nothing extra is ever saved.
+ * previews), as one non-editable unit that opens the guidance form when clicked - for a teacher who
+ * may edit guidance; for anyone else a click does nothing but what the preview's own controls do.
+ * contenteditable is added on the way in and taken off on the way out, and the preview is never
+ * inside the token, so nothing extra is ever saved. All of that is for everyone: a teacher who may
+ * not edit guidance still edits the text around it, and must not break it.
  *
  * @module     tiny_edguidance/tokens
  * @copyright  2026 Andrew Rowatt <A.J.Rowatt@massey.ac.nz>
@@ -30,6 +32,7 @@
 import {getStrings} from 'core/str';
 import {registerPlaceholderSelectors} from 'editor_tiny/options';
 import {component, tokenSelector} from './common';
+import {canManage} from './options';
 import {watch} from './previews';
 import {editGuidance} from './ui';
 
@@ -50,11 +53,14 @@ const tokenStyle = () => `
 `;
 
 export const getSetup = async() => {
-    const [chip, hint, dismissedHint, completedHint, up, down] = await getStrings([
+    const [chip, plainChip, hint, dismissedHint, completedHint, readHint, completeHint, up, down] = await getStrings([
         {key: 'chiplabel', component},
+        {key: 'buttontitle', component},
         {key: 'clicktoedit', component},
         {key: 'clicktoeditdismissed', component},
         {key: 'clicktoeditcompleted', component},
+        {key: 'markedread', component},
+        {key: 'markedcomplete', component},
         {key: 'moveup', component},
         {key: 'movedown', component},
     ]);
@@ -76,7 +82,11 @@ export const getSetup = async() => {
 
         editor.on('init', () => {
             editor.dom.addStyle(tokenStyle());
-            watch(editor, {chip, hint, dismissedHint, completedHint, up, down});
+            // What the header says: how to edit it, to those who may.
+            const labels = canManage(editor)
+                ? {chip, hint, dismissedHint, completedHint, up, down}
+                : {chip: plainChip, hint: '', dismissedHint: readHint, completedHint: completeHint, up, down};
+            watch(editor, labels);
         });
 
         // Whenever content arrives - initial load, paste, undo - make every token non-editable, so
@@ -89,7 +99,7 @@ export const getSetup = async() => {
 
         editor.on('click', (event) => {
             const token = event.target.closest ? event.target.closest(tokenSelector) : null;
-            if (token) {
+            if (token && canManage(editor)) {
                 event.preventDefault();
                 editor.selection.select(token);
                 editGuidance(editor, token);

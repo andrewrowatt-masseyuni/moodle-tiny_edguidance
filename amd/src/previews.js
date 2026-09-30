@@ -32,7 +32,14 @@
  * MutationObserver finds tokens as they arrive.
  *
  * The shadow root also holds the buttons that move the token up and down (see move), for the same
- * reason: nothing in it is ever saved.
+ * reason: nothing in it is ever saved. They are only there for a teacher who may edit guidance.
+ *
+ * For a teacher who may tick, the preview is as live as the page: its checklist ticks, and it can
+ * be marked as read or complete, undone, or - if it already was - restored, all through
+ * local_edguidance/guidance, as the page does. The server decides which controls it has (see
+ * local_edguidance\output\block::render_preview()). Clicks and keys on them are stopped inside the
+ * shadow root: the token would take a click as a request to open the form, and TinyMCE a key as
+ * typing over the selected token.
  *
  * Guidance the teacher has dismissed shows nothing at all, as on the page, until they choose "Show
  * dismissed guidance" from the menu. From then on, in that editor only and until the page is left,
@@ -49,9 +56,10 @@ import Notification from 'core/notification';
 import Pending from 'core/pending';
 import {call as fetchMany} from 'core/ajax';
 import {getContextId} from 'editor_tiny/options';
+import {dismiss, tick} from 'local_edguidance/guidance';
 import {keyPattern, tokenSelector} from './common';
 import {addMoveControls, moveStyle} from './move';
-import {getPageCss, getSectionId} from './options';
+import {canManage, getPageCss, getSectionId} from './options';
 
 /** @var {string} The class of the element in each shadow root that holds the preview. */
 const CONTENTCLASS = 'tiny-edguidance-preview';
@@ -65,6 +73,15 @@ const states = new WeakMap();
 /** @var {WeakMap<HTMLElement, string>} What each token is showing, as viewKey() describes it. */
 const shown = new WeakMap();
 
+/** @var {object} The preview's own controls, as local_edguidance's block template marks them. */
+const CONTROLS = {
+    BLOCK: '[data-region="edguidance"]',
+    CHECK: '[data-action="edguidance-check"]',
+    BUTTON: '[data-action="edguidance-dismiss"], [data-action="edguidance-undo"], [data-action="edguidance-restore"]',
+    ANY: '.edguidance-checkitem, [data-action="edguidance-dismiss"], [data-action="edguidance-undo"], ' +
+        '[data-action="edguidance-restore"]',
+};
+
 /**
  * The stylesheet inside each shadow root, after the page's own.
  *
@@ -73,7 +90,7 @@ const shown = new WeakMap();
  * chip shows before anyone knows which category the guidance is.
  *
  * @param {object} labels
- * @param {string} labels.hint What the header says in place of the page's Dismiss button.
+ * @param {string} labels.hint What the header says, for a teacher who may edit it: how to.
  * @param {string} labels.dismissedHint What it says on guidance the teacher has dismissed.
  * @param {string} labels.completedHint What it says instead on a task the teacher has dismissed.
  * @returns {string}
@@ -83,17 +100,28 @@ const previewStyle = ({hint, dismissedHint, completedHint}) => `
         display: block;
         position: relative;
     }
-    /* Clicks land on the token itself, which opens the block's form. Nothing in the guidance - a
-       link, a video - acts on its own inside the editor. */
+    /* Clicks land on the token itself, which opens the block's form for a teacher who may edit it.
+       Nothing in the guidance - a link, a video - acts on its own inside the editor; only the
+       preview's own controls, where the teacher may use them. */
     .${CONTENTCLASS} {
         pointer-events: none;
     }
+    .${CONTENTCLASS} :is(.edguidance-checkitem:has(> .edguidance-check:not(:disabled)), .edguidance-dismiss,
+            .edguidance-undo, .edguidance-restore) {
+        pointer-events: auto;
+    }
+    /* The hint comes before the header's button, and pushes both to the right even when it is empty. */
     .edguidance-header::after {
         content: ${JSON.stringify(hint)};
+        order: 1;
         margin-left: auto;
         font-size: 0.8rem;
         font-weight: 500;
         color: var(--edguidance-action, #495057);
+    }
+    .edguidance .edguidance-header > button {
+        order: 2;
+        margin-left: 0;
     }
     /* Dismissed guidance, shown on request: hatched, and saying so, since a pattern alone is easy to
        miss. */
@@ -146,7 +174,72 @@ const fontFaces = () => Array.from(document.styleSheets)
     .join('\n');
 
 /**
- * Give a token its shadow root, with the page's stylesheets, an empty preview and the move buttons.
+ * Restore guidance the teacher had dismissed, and fetch it again: restored, it is guidance like any
+ * other, and shows so.
+ *
+ * @param {TinyMCE} editor
+ * @param {HTMLElement} token
+ * @param {HTMLElement} block The block in its preview.
+ */
+const restore = async(editor, token, block) => {
+    if (await dismiss(block, false)) {
+        refresh(editor, token.dataset.edguidance || '');
+    }
+};
+
+/**
+ * Let a preview's own controls work, and keep them to themselves.
+ *
+ * @param {TinyMCE} editor
+ * @param {HTMLElement} token
+ * @param {HTMLElement} content The preview's element in the token's shadow root.
+ */
+const wireControls = (editor, token, content) => {
+    // The preview's elements are the editor iframe's, not this window's, so "instanceof Element"
+    // would never hold: ask whether they can be searched instead.
+    const element = (event) => (event.target?.closest ? event.target : null);
+
+    content.addEventListener('click', (event) => {
+        const target = element(event);
+        if (!target?.closest(CONTROLS.ANY)) {
+            return;
+        }
+        event.stopPropagation();
+
+        // A checklist item ticks by itself; its change is handled below.
+        const button = target.closest(CONTROLS.BUTTON);
+        if (!button) {
+            return;
+        }
+        event.preventDefault();
+
+        const block = button.closest(CONTROLS.BLOCK);
+        const action = button.dataset.action;
+        if (action === 'edguidance-restore') {
+            restore(editor, token, block);
+        } else {
+            dismiss(block, action === 'edguidance-dismiss');
+        }
+    });
+
+    content.addEventListener('change', (event) => {
+        const box = element(event)?.closest(CONTROLS.CHECK);
+        const block = box?.closest(CONTROLS.BLOCK);
+        if (block) {
+            tick(block, box);
+        }
+    });
+
+    ['mousedown', 'mouseup', 'keydown', 'keypress', 'keyup'].forEach((type) => content.addEventListener(type, (event) => {
+        if (element(event)?.closest(CONTROLS.ANY)) {
+            event.stopPropagation();
+        }
+    }));
+};
+
+/**
+ * Give a token its shadow root, with the page's stylesheets, an empty preview and - for a teacher
+ * who may edit guidance - the move buttons.
  *
  * @param {TinyMCE} editor
  * @param {HTMLElement} token
@@ -172,7 +265,10 @@ const attach = (editor, token) => {
     content.className = CONTENTCLASS;
 
     root.append(style, content);
-    addMoveControls(editor, root, labels);
+    wireControls(editor, token, content);
+    if (canManage(editor)) {
+        addMoveControls(editor, root, labels);
+    }
 
     return root;
 };
@@ -281,6 +377,8 @@ const send = async(editor) => {
         });
         if (!editor.removed) {
             showAll(editor);
+            // The button's menu may have something new to offer: dismissed guidance to show.
+            editor.nodeChanged();
         }
     } catch (error) {
         // Left as the chip, which still opens the form. Not asked again until the guidance is edited.

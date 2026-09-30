@@ -22,6 +22,7 @@ use editor_tiny\plugin;
 use editor_tiny\plugin_with_buttons;
 use editor_tiny\plugin_with_configuration;
 use editor_tiny\plugin_with_menuitems;
+use local_edguidance\form\embed_form;
 use local_edguidance\presets;
 
 /**
@@ -33,18 +34,22 @@ use local_edguidance\presets;
  */
 class plugininfo extends plugin implements plugin_with_buttons, plugin_with_configuration, plugin_with_menuitems {
     /**
-     * Whether to offer the button in this editor.
+     * Whether to offer the plugin in this editor.
      *
-     * Only where a block can live and only to people who may write one: an activity's own editors
-     * (a description, a book chapter, a lesson page), a section's summary on its edit page, or a
-     * course's editors on the "add an activity" form, where the description is written before the
-     * activity exists.
+     * Where a block can live - an activity's own editors (a description, a book chapter, a lesson
+     * page), a section's summary on its edit page, or a course's editors on the "add an activity"
+     * form, where the description is written before the activity exists - to anyone who may read
+     * guidance. An editing teacher who may not write guidance still edits the text around it, and
+     * the plugin is what keeps its tokens whole and shows them as guidance, which they can tick and
+     * mark there. What it offers each of them is get_plugin_configuration_for_context()'s business.
      *
-     * Never in an editor rendered over AJAX. The one that matters is the guidance editor itself,
-     * inside local_edguidance's modal form: guidance embedded in guidance is never shown, so a button
-     * that did it would only mislead. Editor options cannot carry a flag to say so - the editor form
-     * element drops keys it does not know - and every editor this button is meant for is on an
-     * ordinary page.
+     * And in the guidance editor itself, inside local_edguidance's modal form, to people who may
+     * write guidance - only to add checklist tasks, never guidance, which is never shown inside
+     * guidance. embed_form::is_rendering() is how it is told apart: editor options cannot carry a
+     * flag - the editor form element drops keys it does not know - and its context is the same.
+     *
+     * Never in any other editor rendered over AJAX: every one this is meant for is on an ordinary
+     * page.
      *
      * @param context $context The editor's context.
      * @param array $options The editor options.
@@ -58,24 +63,47 @@ class plugininfo extends plugin implements plugin_with_buttons, plugin_with_conf
         array $fpoptions,
         ?editor $editor = null
     ): bool {
-        if (defined('AJAX_SCRIPT') && AJAX_SCRIPT) {
-            return false;
-        }
-
         if (!get_config('local_edguidance', 'version')) {
             return false;
         }
 
-        if ($context->contextlevel == CONTEXT_MODULE) {
+        if (self::in_guidance_editor()) {
             return has_capability('local/edguidance:manage', $context);
+        }
+
+        if (defined('AJAX_SCRIPT') && AJAX_SCRIPT) {
+            return false;
+        }
+
+        if ($context->contextlevel == CONTEXT_MODULE) {
+            return self::can_read($context);
         }
 
         if ($context->contextlevel == CONTEXT_COURSE && (int)$context->instanceid !== (int)SITEID) {
             return (self::on_page('/course/modedit.php') || self::section_being_edited($context))
-                && has_capability('local/edguidance:manage', $context);
+                && self::can_read($context);
         }
 
         return false;
+    }
+
+    /**
+     * Whether the editor being set up is the guidance editor, inside local_edguidance's form.
+     *
+     * @return bool
+     */
+    protected static function in_guidance_editor(): bool {
+        return class_exists(embed_form::class) && embed_form::is_rendering();
+    }
+
+    /**
+     * Whether the current user may read guidance here, or write it.
+     *
+     * @param context $context The editor's context.
+     * @return bool
+     */
+    protected static function can_read(context $context): bool {
+        return has_any_capability(['local/edguidance:view', 'local/edguidance:manage'], $context);
     }
 
     /**
@@ -134,8 +162,13 @@ class plugininfo extends plugin implements plugin_with_buttons, plugin_with_conf
     }
 
     /**
-     * The site presets on offer, for the button's menu; the section being edited, if any; and the
-     * page's theme stylesheets, for the guidance preview.
+     * Which editor this is (mode: guidance, the guidance editor, or host, any other); what the
+     * current user may do there (canmanage: write, edit and move guidance; cantick: tick, and mark
+     * as read or complete, in the preview); the site presets on offer, for the button's menu; the
+     * section being edited, if any; and the page's theme stylesheets, for the guidance preview.
+     *
+     * The capabilities go to the client only to decide what it offers. Every web service it calls
+     * checks them again.
      *
      * @param context $context The editor's context.
      * @param array $options The editor options.
@@ -155,10 +188,16 @@ class plugininfo extends plugin implements plugin_with_buttons, plugin_with_conf
             $presets[] = ['slot' => $slot, 'title' => format_string($title, true, ['context' => $context, 'escape' => false])];
         }
 
+        $guidance = self::in_guidance_editor();
+
         return [
+            'mode' => $guidance ? 'guidance' : 'host',
+            'canmanage' => has_capability('local/edguidance:manage', $context),
+            'cantick' => has_capability('local/edguidance:tick', $context),
             'presets' => $presets,
             'sectionid' => self::section_being_edited($context),
-            'pagecss' => self::page_css(),
+            // Nothing in the guidance editor is previewed.
+            'pagecss' => $guidance ? [] : self::page_css(),
         ];
     }
 

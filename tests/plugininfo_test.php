@@ -26,22 +26,56 @@ namespace tiny_edguidance;
  */
 final class plugininfo_test extends \advanced_testcase {
     /**
-     * Offered in an activity to people who may write guidance, and to nobody else.
+     * Offered in an activity to anyone who may read guidance - an editing teacher who may not write
+     * it still edits the text around it - and told what each may do there. Not to students.
      */
     public function test_activity_editors(): void {
         $this->resetAfterTest();
         $course = $this->getDataGenerator()->create_course();
         $book = $this->getDataGenerator()->create_module('book', ['course' => $course->id]);
         $context = \context_module::instance($book->cmid);
+        $may = function () use ($context): array {
+            $config = plugininfo::get_plugin_configuration_for_context($context, [], []);
+            return [$config['mode'], $config['canmanage'], $config['cantick']];
+        };
+
+        $this->setUser($this->getDataGenerator()->create_and_enrol($course, 'manager'));
+        $this->assertTrue(plugininfo::is_enabled($context, [], []));
+        $this->assertSame(['host', true, true], $may());
 
         $this->setUser($this->getDataGenerator()->create_and_enrol($course, 'editingteacher'));
         $this->assertTrue(plugininfo::is_enabled($context, [], []));
+        $this->assertSame(['host', false, true], $may());
 
         $this->setUser($this->getDataGenerator()->create_and_enrol($course, 'teacher'));
-        $this->assertFalse(plugininfo::is_enabled($context, [], []));
+        $this->assertTrue(plugininfo::is_enabled($context, [], []));
 
         $this->setUser($this->getDataGenerator()->create_and_enrol($course, 'student'));
         $this->assertFalse(plugininfo::is_enabled($context, [], []));
+    }
+
+    /**
+     * In the guidance editor - inside local_edguidance's own form - offered to those who may write
+     * guidance, in guidance mode: only to add tasks. Found by rendering the form as the modal does.
+     */
+    public function test_guidance_editor(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $book = $this->getDataGenerator()->create_module('book', ['course' => $course->id]);
+        $context = \context_module::instance($book->cmid);
+        $this->setUser($this->getDataGenerator()->create_and_enrol($course, 'manager'));
+
+        $result = \core_form\external\dynamic_form::execute(
+            \local_edguidance\form\embed_form::class,
+            http_build_query(['contextid' => $context->id], '', '&')
+        );
+
+        $this->assertMatchesRegularExpression(
+            '~"tiny_edguidance\\\\/plugin":\{"buttons":\[[^\]]*\],"menuitems":\[[^\]]*\],"config":\{"mode":"guidance"~',
+            $result['javascript']
+        );
+        // And only while the form renders: the same context's editors elsewhere are hosts.
+        $this->assertSame('host', plugininfo::get_plugin_configuration_for_context($context, [], [])['mode']);
     }
 
     /**
@@ -83,7 +117,7 @@ final class plugininfo_test extends \advanced_testcase {
             plugininfo::get_plugin_configuration_for_context($context, [], [])['sectionid']
         );
 
-        $this->setUser($this->getDataGenerator()->create_and_enrol($course, 'teacher'));
+        $this->setUser($this->getDataGenerator()->create_and_enrol($course, 'student'));
         $this->assertFalse(plugininfo::is_enabled($context, [], []));
 
         // A section id that is not in this course's context is no section at all.

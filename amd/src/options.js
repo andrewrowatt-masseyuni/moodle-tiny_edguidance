@@ -24,6 +24,9 @@
 import {getPluginOptionName} from 'editor_tiny/options';
 import {pluginName} from './common';
 
+const modeName = getPluginOptionName(pluginName, 'mode');
+const canManageName = getPluginOptionName(pluginName, 'canmanage');
+const canTickName = getPluginOptionName(pluginName, 'cantick');
 const presetsName = getPluginOptionName(pluginName, 'presets');
 const sectionIdName = getPluginOptionName(pluginName, 'sectionid');
 const pageCssName = getPluginOptionName(pluginName, 'pagecss');
@@ -34,6 +37,18 @@ const pageCssName = getPluginOptionName(pluginName, 'pagecss');
  * @param {TinyMCE} editor
  */
 export const register = (editor) => {
+    editor.options.register(modeName, {
+        processor: 'string',
+        "default": 'host',
+    });
+    editor.options.register(canManageName, {
+        processor: 'boolean',
+        "default": false,
+    });
+    editor.options.register(canTickName, {
+        processor: 'boolean',
+        "default": false,
+    });
     editor.options.register(presetsName, {
         processor: 'array',
         "default": [],
@@ -47,6 +62,31 @@ export const register = (editor) => {
         "default": [],
     });
 };
+
+/**
+ * Whether this is the guidance editor, inside local_edguidance's form, rather than an editor that
+ * holds guidance.
+ *
+ * @param {TinyMCE} editor
+ * @returns {boolean}
+ */
+export const isGuidanceEditor = (editor) => editor.options.get(modeName) === 'guidance';
+
+/**
+ * Whether the teacher may write, edit and move guidance here.
+ *
+ * @param {TinyMCE} editor
+ * @returns {boolean}
+ */
+export const canManage = (editor) => editor.options.get(canManageName);
+
+/**
+ * Whether the teacher may tick checklists, and mark guidance as read or complete, here.
+ *
+ * @param {TinyMCE} editor
+ * @returns {boolean}
+ */
+export const canTick = (editor) => editor.options.get(canTickName);
 
 /**
  * The site presets on offer, as [{slot, title}].

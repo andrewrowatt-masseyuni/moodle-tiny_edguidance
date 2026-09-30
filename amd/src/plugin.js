@@ -47,7 +47,10 @@ export default new Promise(async(resolve) => {
     // The PluginManager.add function does not accept a Promise: anything asynchronous happens above.
     tinyMCE.PluginManager.add(`${component}/plugin`, (editor) => {
         Options.register(editor);
-        setupTokens(editor);
+        // The guidance editor holds no guidance, only the text of one.
+        if (!Options.isGuidanceEditor(editor)) {
+            setupTokens(editor);
+        }
         setupCommands(editor);
 
         return pluginMetadata;

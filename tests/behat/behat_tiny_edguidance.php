@@ -133,6 +133,39 @@ class behat_tiny_edguidance extends behat_base {
     }
 
     /**
+     * Click a checklist item, or a button, in a teacher guidance preview: the first whose text holds
+     * the given text.
+     *
+     * The preview is in the token's shadow root, so it is clicked through the editor, as the move
+     * buttons are. A checklist item is clicked by its label, as a teacher would.
+     *
+     * @When /^I click on "(?P<text>[^"]*)" in the teacher guidance preview in the "(?P<editor>[^"]*)" TinyMCE editor$/
+     * @param string $text The item's or button's text.
+     * @param string $locator The editor.
+     */
+    public function i_click_in_the_preview(string $text, string $locator): void {
+        $this->require_tiny_tags();
+
+        $editorid = $this->get_textarea_for_locator($locator)->getAttribute('id');
+        $needle = json_encode($text);
+        $clicked = $this->evaluate_javascript_for_editor($editorid, <<<EOF
+            const control = Array.from(instance.getBody().querySelectorAll('div[data-edguidance]'))
+                .flatMap((token) => Array.from(token.shadowRoot?.querySelectorAll(
+                    '.tiny-edguidance-preview :is(.edguidance-checkitem, button:not([hidden]))') ?? []))
+                .find((element) => !element.closest('[hidden]') && element.textContent.includes({$needle}));
+            control?.click();
+            resolve(Boolean(control));
+            EOF);
+
+        if (!$clicked) {
+            throw new ExpectationException(
+                "The \"{$locator}\" editor previews no checklist item or button \"{$text}\".",
+                $this->getSession()
+            );
+        }
+    }
+
+    /**
      * Click a teacher guidance block's move up or move down button.
      *
      * The buttons are in the token's shadow root, and only appear on hover, so they are clicked

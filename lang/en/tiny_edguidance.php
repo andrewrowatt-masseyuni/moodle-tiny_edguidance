@@ -24,6 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+$string['addtask'] = 'Add task';
 $string['buttontitle'] = 'Teacher guidance';
 $string['chiplabel'] = 'Teacher guidance (only teachers see this) - click to edit';
 $string['clicktoedit'] = 'Click to edit';
@@ -33,6 +34,8 @@ $string['delete'] = 'Delete';
 $string['deleteconfirm'] = 'This deletes the teacher guidance for every teacher, not just you, when you save your changes. Are you sure?';
 $string['deletetitle'] = 'Delete teacher guidance';
 $string['editguidance'] = 'Edit this teacher guidance';
+$string['markedcomplete'] = 'Marked as complete';
+$string['markedread'] = 'Marked as read';
 $string['modaltitle'] = 'Teacher guidance';
 $string['movedown'] = 'Move teacher guidance down';
 $string['moveup'] = 'Move teacher guidance up';
@@ -42,4 +45,5 @@ $string['restore'] = 'Restore';
 $string['showdismissed'] = 'Show guidance marked as read';
 $string['startblank'] = 'Start with blank';
 $string['startpreset'] = 'Start with a preset';
+$string['taskname'] = 'Task name';
 $string['usepreset'] = 'Use a preset';

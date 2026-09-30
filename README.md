@@ -3,7 +3,8 @@
 Part of **teacher guidance** - see `local/edguidance/README.md` for the design, which covers all
 three plugins.
 
-Adds a **Teacher guidance** menu to the TinyMCE toolbar (and to the Insert menu):
+Adds a **Teacher guidance** menu to the TinyMCE toolbar (and to the Insert menu). For a teacher who
+may write guidance (`local/edguidance:manage`, managers by default):
 
 * **Use a preset** > *title* - embeds a site preset, linked and read-only. No dialogue.
 * **Start with a preset** > *title* - opens the guidance form pre-filled with a copy of the preset.
@@ -13,6 +14,14 @@ Adds a **Teacher guidance** menu to the TinyMCE toolbar (and to the Insert menu)
   saved, and then takes the token out of the text in one undo step; and, for guidance you have
   marked as read (or, for a task, as complete), **Restore**. The form also sets the guidance's
   category - note, recommendation, task or optional task - and an optional heading.
+
+For anyone else who may read guidance - an editing teacher, by default - the plugin still shows
+guidance in the editor and keeps it whole, but offers only **Show guidance marked as read**. With
+`local/edguidance:tick` they can tick its checklists, and mark it as read or complete (or restore
+it), in the preview itself; clicking it does not open the form, and there are no move arrows.
+
+In the guidance editor itself, inside the form, the same button offers only **Add task**, which
+writes `[ ] Task name` on a new line with *Task name* selected.
 
 The form is `local_edguidance\form\embed_form`, opened with `core_form/modalform`; the one-click path
 is the `local_edguidance_embed_preset` web service. Either way the server returns a key, and all this
@@ -29,9 +38,10 @@ choose **Show guidance marked as read** from the menu (offered only while some i
 that editor until you leave the page, it shows in full over a light hatch, marked *Marked as read*
 or, for a task, *Marked as complete*.
 
-The button is offered only to holders of `local/edguidance:manage`, only in an activity's editors, on
-a section's *Edit section* page, or on the *add an activity* form, and never in an editor rendered
-over AJAX - which is how it keeps out of the guidance editor inside its own modal.
+The plugin is on only for people who may read guidance, only in an activity's editors, on a
+section's *Edit section* page, or on the *add an activity* form - and in the guidance editor, which
+`embed_form::is_rendering()` picks out, for people who may write guidance. Never in any other editor
+rendered over AJAX.
 
 The last two are both in the course context. On *Edit section* the plugin passes the section id to
 the editor, which sends it with every call, so the block belongs to that section rather than being a
